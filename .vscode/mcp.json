@@ -1,16 +1,10 @@
 {
   "servers": {
     "Salesforce DX": {
-      "command": "node",
-      "args": [
-        "${workspaceFolder}/packages/mcp/bin/run.js",
-        "--toolsets",
-        "all",
-        "--orgs",
-        "DEFAULT_TARGET_ORG",
-        "--no-telemetry",
-        "--allow-non-ga-tools"
-      ]
+      "command": "npx",
+      "args": ["-y", "@salesforce/mcp@latest", 
+               "--orgs", "utilisateurtechnique.ia@cnas.fr.devstab", 
+               "--toolsets", "all"]
     }
   }
 }
