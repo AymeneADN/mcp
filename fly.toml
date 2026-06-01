@@ -5,11 +5,9 @@ primary_region = "cdg"
   # utilise le Dockerfile à la racine
 
 [env]
-  SF_INSTANCE_URL = "https://crmcnas--devstab.sandbox.my.salesforce.com"
-
-[env]
   PORT = "8080"
   NODE_ENV = "production"
+  SF_INSTANCE_URL = "https://crmcnas--devstab.sandbox.my.salesforce.com"
 
 [[services]]
   internal_port = 8080
