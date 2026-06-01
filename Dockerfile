@@ -1,15 +1,18 @@
 FROM node:20-slim
 
-# Salesforce CLI (nécessaire pour l'auth et les commandes sf)
+# Salesforce CLI
 RUN npm install -g @salesforce/cli@latest
 
-# mcp-proxy : bridge stdio ↔ HTTP/SSE
+# Proxy stdio -> HTTP/SSE
 RUN npm install -g mcp-proxy
 
 WORKDIR /app
 
-# Copier les éventuels fichiers de config Salesforce
+# Copier les fichiers du projet
 COPY . .
+
+# Corriger les fins de ligne Windows et rendre le script exécutable
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod 755 /app/entrypoint.sh
 
 EXPOSE 8080
 
