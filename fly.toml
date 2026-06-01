@@ -1,20 +1,12 @@
-app = "salesforce-mcp-server"
+app = "mcp-salesforce-server"
 primary_region = "cdg"
 
-[build]
-  # utilise le Dockerfile à la racine
-
 [env]
-  PORT = "8080"
-  NODE_ENV = "production"
-  SF_INSTANCE_URL = "https://crmcnas--devstab.sandbox.my.salesforce.com"
+  SF_INSTANCE_URL = "https://test.salesforce.com"
 
 [[services]]
   internal_port = 8080
   protocol = "tcp"
-  auto_stop_machines = true
-  auto_start_machines = true
-  min_machines_running = 0
 
   [[services.ports]]
     handlers = ["http"]
@@ -23,8 +15,3 @@ primary_region = "cdg"
   [[services.ports]]
     handlers = ["tls", "http"]
     port = 443
-
-  [services.concurrency]
-    type = "requests"
-    hard_limit = 10
-    soft_limit = 5
