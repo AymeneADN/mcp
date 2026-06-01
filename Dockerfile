@@ -2,6 +2,7 @@ FROM node:20-slim
 
 RUN npm install -g @salesforce/cli@latest
 RUN npm install -g mcp-proxy
+RUN npm install -g @salesforce/mcp
 
 WORKDIR /app
 COPY . .
