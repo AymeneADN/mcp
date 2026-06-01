@@ -4,6 +4,10 @@ primary_region = "cdg"
 [env]
   SF_INSTANCE_URL = "https://test.salesforce.com"
 
+[[files]]
+  guest_path = "/app/assets/server.key"
+  secret_name = "SF_JWT_PRIVATE_KEY"
+
 [[services]]
   internal_port = 8080
   protocol = "tcp"

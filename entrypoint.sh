@@ -1,11 +1,7 @@
 #!/bin/sh
 set -e
 
-if [ -n "$SF_JWT_PRIVATE_KEY" ]; then
-  mkdir -p /app/assets
-  printf '%s' "$SF_JWT_PRIVATE_KEY" | base64 -d > /app/assets/server.key
-  chmod 600 /app/assets/server.key
-fi
+chmod 600 /app/assets/server.key
 
 sf org login jwt \
   --username "$SF_USERNAME" \
@@ -18,8 +14,9 @@ sf org login jwt \
 echo "Salesforce JWT auth OK"
 
 exec mcp-proxy \
-  --port 8080 \
   --host 0.0.0.0 \
+  --port 8080 \
+  --endpoint /sse \
   -- \
   npx -y @salesforce/mcp \
     --orgs DEFAULT_TARGET_ORG \
