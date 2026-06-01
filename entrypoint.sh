@@ -3,7 +3,7 @@ set -e
 
 if [ -n "$SF_JWT_PRIVATE_KEY" ]; then
   mkdir -p /app/assets
-  printf '%s' "$SF_JWT_PRIVATE_KEY" > /app/assets/server.key
+  printf '%s' "$SF_JWT_PRIVATE_KEY" | base64 -d > /app/assets/server.key
   chmod 600 /app/assets/server.key
 fi
 
