@@ -1,5 +1,5 @@
 app = "salesforce-mcp-server"
-primary_region = "ams"
+primary_region = "cdg"
 
 [build]
   # utilise le Dockerfile à la racine
