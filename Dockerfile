@@ -13,6 +13,8 @@ COPY . .
 
 EXPOSE 8080
 
+ENTRYPOINT ["/app/entrypoint.sh"]
+
 CMD ["mcp-proxy", \
   "--port", "8080", \
   "--host", "0.0.0.0", \
