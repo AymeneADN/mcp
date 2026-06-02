@@ -18,7 +18,7 @@ exec mcp-proxy \
   --port 8080 \
   --endpoint /sse \
   -- \
-  salesforce-mcp \
-    --orgs utilisateurtechnique.ia@cnas.fr.devstab \
+  npx -y @salesforce/mcp \
+    --orgs "$SF_USERNAME" \
     --toolsets all \
     --allow-non-ga-tools
