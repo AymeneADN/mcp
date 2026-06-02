@@ -18,7 +18,10 @@
 
 import { TOOLSETS } from '@salesforce/mcp-provider-api';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { Command, Flags, ux } from '@oclif/core';
+import express, { Request, Response } from 'express';
 import Cache from './utils/cache.js';
 import { Telemetry } from './telemetry.js';
 import { SfMcpServer } from './sf-mcp-server.js';
@@ -27,10 +30,6 @@ import { Services } from './services.js';
 
 /**
  * Sanitizes an array of org usernames by replacing specific orgs with a placeholder.
- * Special values (DEFAULT_TARGET_ORG, DEFAULT_TARGET_DEV_HUB, ALLOW_ALL_ORGS) are preserved.
- *
- * @param {string[]} input - Array of org identifiers to sanitize
- * @returns {string} Comma-separated string of sanitized org identifiers
  */
 function sanitizeOrgInput(input: string[]): string {
   return input
@@ -38,7 +37,6 @@ function sanitizeOrgInput(input: string[]): string {
       if (org === 'DEFAULT_TARGET_ORG' || org === 'DEFAULT_TARGET_DEV_HUB' || org === 'ALLOW_ALL_ORGS') {
         return org;
       }
-
       return 'SANITIZED_ORG';
     })
     .join(', ');
@@ -68,7 +66,6 @@ You can also use special values to control access to orgs:
         if (input === 'ALLOW_ALL_ORGS') {
           ux.warn('ALLOW_ALL_ORGS is set. This allows access to all authenticated orgs. Use with caution.');
         }
-
         if (
           input === 'DEFAULT_TARGET_ORG' ||
           input === 'DEFAULT_TARGET_DEV_HUB' ||
@@ -77,7 +74,6 @@ You can also use special values to control access to orgs:
         ) {
           return Promise.resolve(input);
         }
-
         ux.error(
           `Invalid org input: "${input}". Please provide a valid org username or alias, or use one of the special values: DEFAULT_TARGET_ORG, DEFAULT_TARGET_DEV_HUB, ALLOW_ALL_ORGS.`
         );
@@ -90,10 +86,6 @@ You can also use special values to control access to orgs:
       delimiter: ',',
       exclusive: ['dynamic-tools'],
     })(),
-    // It would be nice if we could get these as an Flags.option
-    // Since the tools need `services` passed in I am not sure we
-    // can get the list of tools this early. We could build a json
-    // manifest (pre-commit) that could be read from for tool names
     tools: Flags.string({
       summary: 'Tool(s) to enable',
       multiple: true,
@@ -115,28 +107,35 @@ You can also use special values to control access to orgs:
     'allow-non-ga-tools': Flags.boolean({
       summary: 'Enable the ability to register tools that are not yet generally available (GA)',
     }),
+    // ── NEW FLAGS ──────────────────────────────────────────────────────────────
+    http: Flags.boolean({
+      summary: 'Start in HTTP mode instead of stdio (uses StreamableHTTPServerTransport)',
+      default: false,
+    }),
+    port: Flags.integer({
+      summary: 'Port to listen on in HTTP mode',
+      default: 3000,
+      dependsOn: ['http'],
+    }),
+    host: Flags.string({
+      summary: 'Host to bind to in HTTP mode',
+      default: '0.0.0.0',
+      dependsOn: ['http'],
+    }),
   };
 
   public static examples = [
     {
-      description: 'Start the server with all toolsets enabled and access only to the default org in the project',
+      description: 'Start the server over stdio (default)',
       command: '<%= config.bin %> --toolsets all --orgs DEFAULT_TARGET_ORG',
     },
     {
-      description: 'Allow access to the default target org and "my-alias" with only the "data" toolset',
-      command: '<%= config.bin %> --orgs DEFAULT_TARGET_DEV_HUB,my-alias --toolsets data',
+      description: 'Start the server over HTTP on port 3000',
+      command: '<%= config.bin %> --toolsets all --orgs DEFAULT_TARGET_ORG --http --port 3000',
     },
     {
-      description: 'Allow access to 3 specific orgs and enable all toolsets',
-      command: '<%= config.bin %> --toolsets all --orgs test-org@example.com,my-dev-hub,my-alias',
-    },
-    {
-      description: 'Start the server with the "data" toolset and also the "create_scratch_org" tool',
-      command: '<%= config.bin %> --orgs DEFAULT_TARGET_ORG --toolsets data --tools create_scratch_org',
-    },
-    {
-      description: 'Allow tools that are not generally available (NON-GA) to be registered with the server',
-      command: '<%= config.bin %> --toolsets all --orgs DEFAULT_TARGET_ORG --allow-non-ga-tools',
+      description: 'Start the server over HTTP on a custom host/port',
+      command: '<%= config.bin %> --toolsets all --orgs DEFAULT_TARGET_ORG --http --port 8080 --host 127.0.0.1',
     },
   ];
 
@@ -157,10 +156,8 @@ You can also use special values to control access to orgs:
         this.telemetry?.sendEvent('SERVER_STOPPED_SUCCESS');
         this.telemetry?.stop();
       });
-      
-      // Handle SIGTERM as a fallback to ensure telemetry is sent
-      // https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#stdio
-      process.stdin.on('SIGTERM', () => {
+
+      process.on('SIGTERM', () => {
         this.telemetry?.sendEvent('SERVER_STOPPED_SUCCESS');
         this.telemetry?.stop();
       });
@@ -168,6 +165,7 @@ You can also use special values to control access to orgs:
 
     await Cache.safeSet('allowedOrgs', new Set(flags.orgs));
     this.logToStderr(`Allowed orgs:\n${flags.orgs.map((org) => `- ${org}`).join('\n')}`);
+
     const server = new SfMcpServer(
       {
         name: 'sf-mcp-server',
@@ -177,17 +175,13 @@ You can also use special values to control access to orgs:
           tools: {},
         },
       },
-      {
-        telemetry: this.telemetry,
-      }
+      { telemetry: this.telemetry }
     );
 
     const services = new Services({
       telemetry: this.telemetry,
       dataDir: this.config.dataDir,
-      // Startup flags that could be useful to reference inside of a MCP tool
       startupFlags: {
-        // !! Never pass the 'orgs' flag here. Use 'getOrgService()'.
         'allow-non-ga-tools': flags['allow-non-ga-tools'],
         debug: flags.debug,
       },
@@ -202,10 +196,92 @@ You can also use special values to control access to orgs:
       services
     );
 
+    // if (flags.http) {
+      await this.startHttpServer(server, flags.port, flags.host);
+    // } else {
+    //   await this.startStdioServer(server);
+    // }
+  }
+
+  // ── stdio (comportement original) ──────────────────────────────────────────
+  private async startStdioServer(server: SfMcpServer): Promise<void> {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    
     console.error(`✅ Salesforce MCP Server v${this.config.version} running on stdio`);
+  }
+
+  // ── HTTP via StreamableHTTPServerTransport ─────────────────────────────────
+  private async startHttpServer(server: SfMcpServer, port: number, host: string): Promise<void> {
+    const app = express();
+    app.use(express.json());
+
+    /**
+     * Map of sessionId → transport pour le mode stateful.
+     * Un nouveau transport est créé à chaque requête d'initialisation MCP.
+     */
+    const transports = new Map<string, StreamableHTTPServerTransport>();
+
+    // ── Point d'entrée principal MCP (POST + GET + DELETE sur /mcp) ──────────
+    app.all('/mcp', async (req: Request, res: Response) => {
+      try {
+        const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+        // Réutilise un transport existant si la session est connue
+        if (sessionId && transports.has(sessionId)) {
+          const transport = transports.get(sessionId)!;
+          await transport.handleRequest(req, res, req.body);
+          return;
+        }
+
+        // Nouvelle connexion : doit être une requête d'initialisation MCP
+        if (req.method === 'POST' && isInitializeRequest(req.body)) {
+          const transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => crypto.randomUUID(),
+            onsessioninitialized: (newSessionId) => {
+              transports.set(newSessionId, transport);
+            },
+          });
+
+          // Nettoyage à la fermeture du transport
+          transport.onclose = () => {
+            const sid = transport.sessionId;
+            if (sid) transports.delete(sid);
+          };
+
+          // Connecte le serveur MCP à ce transport (crée un handler dédié)
+          await server.connect(transport);
+          await transport.handleRequest(req, res, req.body);
+          return;
+        }
+
+        // Requête inconnue / session manquante
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'Bad Request: missing or unknown MCP session' },
+          id: null,
+        });
+      } catch (err) {
+        console.error('MCP HTTP error:', err);
+        if (!res.headersSent) {
+          res.status(500).json({
+            jsonrpc: '2.0',
+            error: { code: -32603, message: 'Internal server error' },
+            id: null,
+          });
+        }
+      }
+    });
+
+    // ── Health-check ─────────────────────────────────────────────────────────
+    app.get('/health', (_req, res) => {
+      res.json({ status: 'ok', version: this.config.version, sessions: transports.size });
+    });
+
+    app.listen(port, host, () => {
+      console.error(
+        `✅ Salesforce MCP Server v${this.config.version} running on http://${host}:${port}/mcp`
+      );
+    });
   }
 
   protected async catch(error: Error): Promise<void> {
@@ -214,7 +290,6 @@ You can also use special values to control access to orgs:
       await this.telemetry.start();
     }
 
-    // Track startup failures such as invalid flags, missing dependencies, or initialization errors
     this.telemetry?.sendEvent('START_ERROR', {
       error: error.message,
       stack: error.stack,
