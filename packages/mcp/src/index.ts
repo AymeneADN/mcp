@@ -202,15 +202,6 @@ You can also use special values to control access to orgs:
       services
     );
 
-    if (flags.http) {
-      await this.startHttpServer(server, flags.port, flags.host);
-    } else {
-      await this.startStdioServer(server);
-    }
-  }
-
-  // ── stdio (comportement original) ──────────────────────────────────────────
-  private async startStdioServer(server: SfMcpServer): Promise<void> {
     const transport = new StdioServerTransport();
     await server.connect(transport);
     
