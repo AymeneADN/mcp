@@ -196,11 +196,11 @@ You can also use special values to control access to orgs:
       services
     );
 
-    // if (flags.http) {
+    if (flags.http) {
       await this.startHttpServer(server, flags.port, flags.host);
-    // } else {
-    //   await this.startStdioServer(server);
-    // }
+    } else {
+      await this.startStdioServer(server);
+    }
   }
 
   // ── stdio (comportement original) ──────────────────────────────────────────
