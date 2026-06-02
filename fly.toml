@@ -1,9 +1,6 @@
 app = "mcp-salesforce-server"
 primary_region = "cdg"
 
-[env]
-  SF_INSTANCE_URL = "https://test.salesforce.com"
-
 [[files]]
   guest_path = "/app/assets/server.key"
   secret_name = "SF_JWT_PRIVATE_KEY"

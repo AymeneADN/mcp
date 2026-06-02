@@ -1,10 +1,9 @@
 {
-  "servers": {
-    "Salesforce DX": {
-      "command": "npx",
-      "args": ["-y", "@salesforce/mcp@latest", 
-               "--orgs", "utilisateurtechnique.ia@cnas.fr.devstab", 
-               "--toolsets", "all"]
-    }
-  }
+	"servers": {
+		"SF-MCP-SERVER-PERSO": {
+			"url": "https://mcp-salesforce-server.fly.dev/sse",
+			"type": "http"
+		}
+	},
+	"inputs": []
 }
